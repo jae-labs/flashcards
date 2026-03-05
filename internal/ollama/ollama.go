@@ -34,7 +34,7 @@ func GenerateQA(ctx context.Context, model, url, prompt string) (string, error) 
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := client.Do(req) //nolint:gosec // URL is from config, validated by caller
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to send request: %w", err)
 	}
