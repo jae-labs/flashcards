@@ -238,19 +238,35 @@ jobs:
           VERSION="${{ steps.release_info.outputs.version }}"
           SHA256_ARM64="${{ steps.release_info.outputs.sha256_arm64 }}"
           SHA256_AMD64="${{ steps.release_info.outputs.sha256_amd64 }}"
-          cd homebrew-formulae
 
-          # Update the version
-          sed -i "s/version \".*\"/version \"$VERSION\"/" flashcards.rb
+          cat > homebrew-formulae/flashcards.rb << FORMULA
+          class Flashcards < Formula
+            desc 'Flashcards - AI-powered flashcards CLI'
+            homepage 'https://github.com/jae-labs/flashcards'
+            version '${VERSION}'
+            license 'MIT'
 
-          # Remove the old sha256 line
-          sed -i '/^sha256 /d' flashcards.rb
+            if OS.mac?
+              if Hardware::CPU.arm?
+                url "https://github.com/jae-labs/flashcards/releases/download/${VERSION}/flashcards-darwin-arm64"
+                sha256 '${SHA256_ARM64}'
+              elsif Hardware::CPU.intel?
+                url "https://github.com/jae-labs/flashcards/releases/download/${VERSION}/flashcards-darwin-amd64"
+                sha256 '${SHA256_AMD64}'
+              end
+            end
 
-          # Replace the url line with conditional block for both architectures
-          sed -i "s|^url .*|if Hardware::CPU.arm?\\n  url \"https://github.com/jae-labs/flashcards/releases/download/$VERSION/flashcards-darwin-arm64\"\\n  sha256 \"$SHA256_ARM64\"\\nelse\\n  url \"https://github.com/jae-labs/flashcards/releases/download/$VERSION/flashcards-darwin-amd64\"\\n  sha256 \"$SHA256_AMD64\"\\nend|" flashcards.rb
+            def install
+              bin.install Dir['flashcards-*'].first => 'flashcards'
+            end
 
-          # Show the changes
-          cat flashcards.rb
+            test do
+              system "#{bin}/flashcards", '--version'
+            end
+          end
+          FORMULA
+
+          cat homebrew-formulae/flashcards.rb
 
       - name: Commit and push changes
         run: |
