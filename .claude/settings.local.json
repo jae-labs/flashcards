@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find . -path ./.git -prune -o -type f \\\\\\( -name \"*.go\" -o -name \"*.md\" -o -name \"*.yml\" -o -name \"*.sh\" -o -name \"Makefile\" -o -name \".gitignore\" \\\\\\) -print0 | xargs -0 sed -i '' 's|CATV_MODEL|FLASHCARDS_MODEL|g; s|CATV_OLLAMA_URL|FLASHCARDS_OLLAMA_URL|g; s|CATV_DATA_DIR|FLASHCARDS_DATA_DIR|g')",
+      "Bash(find . -path ./.git -prune -o -type f \\\\\\( -name \"*.go\" -o -name \"*.md\" -o -name \"*.yml\" -o -name \"*.sh\" -o -name \"Makefile\" -o -name \".gitignore\" \\\\\\) -print0 | xargs -0 sed -i '' 's|jae-labs/catv|jae-labs/flashcards|g')",
+      "Bash(find . -path ./.git -prune -o -type f \\\\\\( -name \"*.go\" -o -name \"*.md\" -o -name \"*.yml\" -o -name \"*.sh\" -o -name \"Makefile\" -o -name \".gitignore\" \\\\\\) -print0 | xargs -0 sed -i '' 's|cmd/catv|cmd/flashcards|g')",
+      "Bash(find . -path ./.git -prune -o -type f \\\\\\( -name \"*.go\" -o -name \"*.md\" -o -name \"*.yml\" -o -name \"*.sh\" -o -name \"Makefile\" -o -name \".gitignore\" \\\\\\) -print0 | xargs -0 sed -i '' 's|catv\\\\.rb|flashcards.rb|g')",
+      "Bash(find . -path ./.git -prune -o -type f \\\\\\( -name \"*.go\" -o -name \"*.md\" -o -name \"*.yml\" -o -name \"*.sh\" -o -name \"Makefile\" -o -name \".gitignore\" \\\\\\) -print0 | xargs -0 sed -i '' 's|\\\\.catv|.flashcards|g')",
+      "Bash(find . -path ./.git -prune -o -type f \\\\\\( -name \"*.yml\" -o -name \"*.sh\" -o -name \"Makefile\" -o -name \".gitignore\" \\\\\\) -print0 | xargs -0 sed -i '' 's|catv|flashcards|g')"
+    ]
+  }
+}

@@ -1,0 +1,263 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+
+jobs:
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install ARM cross-compiler
+        if: matrix.arch == 'arm64'
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.24'
+
+      - name: Build binary
+        run: |
+          cd cmd/flashcards
+          mkdir -p dist
+          if [[ "${{ matrix.arch }}" == "arm64" ]]; then
+            CC=aarch64-linux-gnu-gcc CGO_ENABLED=1 GOOS=linux GOARCH=arm64 \
+            go build -ldflags="-s -w" -o dist/flashcards-linux-arm64
+          else
+            CC=gcc CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
+            go build -ldflags="-s -w" -o dist/flashcards-linux-amd64
+          fi
+
+      - name: Create tarball
+        run: |
+          cd cmd/flashcards/dist
+          tar -czf flashcards-linux-${{ matrix.arch }}.tar.gz flashcards-linux-${{ matrix.arch }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: flashcards-linux-${{ matrix.arch }}
+          path: |
+            cmd/flashcards/dist/flashcards-linux-${{ matrix.arch }}.tar.gz
+            cmd/flashcards/dist/flashcards-linux-${{ matrix.arch }}
+
+  build-darwin:
+    name: Build macOS
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.24'
+
+      - name: Build binary
+        run: |
+          cd cmd/flashcards
+          mkdir -p dist
+          CGO_ENABLED=1 GOOS=darwin GOARCH=${{ matrix.arch }} \
+          go build -ldflags="-s -w" -o dist/flashcards-darwin-${{ matrix.arch }}
+
+      - name: Create tarball
+        run: |
+          cd cmd/flashcards/dist
+          tar -czf flashcards-darwin-${{ matrix.arch }}.tar.gz flashcards-darwin-${{ matrix.arch }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: flashcards-darwin-${{ matrix.arch }}
+          path: |
+            cmd/flashcards/dist/flashcards-darwin-${{ matrix.arch }}.tar.gz
+            cmd/flashcards/dist/flashcards-darwin-${{ matrix.arch }}
+
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [build-linux, build-darwin]
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+
+      - name: Organize release files
+        run: |
+          mkdir -p dist
+          find artifacts -name "*.tar.gz" -exec cp {} dist/ \;
+          find artifacts -name "flashcards-*" -type f ! -name "*.tar.gz" -exec cp {} dist/ \;
+          ls -lh dist/
+
+      - name: Generate version tag
+        id: tag
+        run: |
+          # Ensure we have all tags
+          git fetch --tags --force || true
+
+          # Get the latest tag or create initial version
+          LATEST_TAG=$(git tag -l "v*.*.*" --sort=-v:refname | head -n 1)
+
+          if [ -z "$LATEST_TAG" ]; then
+            # No previous tag exists, create v0.0.1
+            NEW_VERSION="v0.0.1"
+            echo "No previous tag found, creating initial version: $NEW_VERSION"
+          else
+            # Extract version numbers and increment patch
+            VERSION=${LATEST_TAG#v}
+            MAJOR=$(echo $VERSION | cut -d. -f1)
+            MINOR=$(echo $VERSION | cut -d. -f2)
+            PATCH=$(echo $VERSION | cut -d. -f3)
+            PATCH=$((PATCH + 1))
+            NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+            echo "Incrementing from $LATEST_TAG to $NEW_VERSION"
+          fi
+
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          LATEST_TAG=$(git tag -l "v*.*.*" --sort=-v:refname | head -n 1)
+
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          if [ -z "$LATEST_TAG" ]; then
+            echo "Initial release" >> $GITHUB_OUTPUT
+          else
+            git log --oneline --no-decorate ${LATEST_TAG}..HEAD >> $GITHUB_OUTPUT 2>/dev/null || echo "No changes since last release" >> $GITHUB_OUTPUT
+          fi
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create versioned GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.version }}
+          name: ${{ steps.tag.outputs.version }}
+          body: |
+            ## What's Changed
+            ${{ steps.changelog.outputs.changelog }}
+          files: dist/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update 'latest' tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f latest
+          git push origin -f latest
+
+      - name: Delete existing 'latest' release
+        uses: dev-drprasad/delete-tag-and-release@v1.1
+        with:
+          tag_name: latest
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Create 'latest' release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "Latest"
+          body: |
+            ## Latest
+
+            This is an automatically generated release from the latest `main` branch.
+          files: dist/*
+          prerelease: false
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update-homebrew:
+    name: Update Homebrew Tap
+    runs-on: ubuntu-latest
+    needs: release
+    steps:
+      - name: Get latest release info
+        id: release_info
+        run: |
+          VERSION="${{ needs.release.outputs.version }}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          # Download the darwin-arm64 binary to calculate SHA256
+          curl -L -o flashcards-darwin-arm64 \
+            "https://github.com/jae-labs/flashcards/releases/download/${VERSION}/flashcards-darwin-arm64"
+
+          SHA256_ARM64=$(sha256sum flashcards-darwin-arm64 | awk '{print $1}')
+          echo "sha256_arm64=$SHA256_ARM64" >> $GITHUB_OUTPUT
+          echo "Darwin ARM64 SHA256: $SHA256_ARM64"
+
+          # Download the darwin-amd64 binary to calculate SHA256
+          curl -L -o flashcards-darwin-amd64 \
+            "https://github.com/jae-labs/flashcards/releases/download/${VERSION}/flashcards-darwin-amd64"
+
+          SHA256_AMD64=$(sha256sum flashcards-darwin-amd64 | awk '{print $1}')
+          echo "sha256_amd64=$SHA256_AMD64" >> $GITHUB_OUTPUT
+          echo "Darwin AMD64 SHA256: $SHA256_AMD64"
+
+      - name: Checkout Homebrew tap
+        uses: actions/checkout@v6
+        with:
+          repository: jae-labs/homebrew-formulae
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-formulae
+
+      - name: Update formula
+        run: |
+          VERSION="${{ steps.release_info.outputs.version }}"
+          SHA256_ARM64="${{ steps.release_info.outputs.sha256_arm64 }}"
+          SHA256_AMD64="${{ steps.release_info.outputs.sha256_amd64 }}"
+          cd homebrew-formulae
+
+          # Update the version
+          sed -i "s/version \".*\"/version \"$VERSION\"/" flashcards.rb
+
+          # Remove the old sha256 line
+          sed -i '/^sha256 /d' flashcards.rb
+
+          # Replace the url line with conditional block for both architectures
+          sed -i "s|^url .*|if Hardware::CPU.arm?\\n  url \"https://github.com/jae-labs/flashcards/releases/download/$VERSION/flashcards-darwin-arm64\"\\n  sha256 \"$SHA256_ARM64\"\\nelse\\n  url \"https://github.com/jae-labs/flashcards/releases/download/$VERSION/flashcards-darwin-amd64\"\\n  sha256 \"$SHA256_AMD64\"\\nend|" flashcards.rb
+
+          # Show the changes
+          cat flashcards.rb
+
+      - name: Commit and push changes
+        run: |
+          cd homebrew-formulae
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add flashcards.rb
+          git commit -m "Update flashcards to ${{ steps.release_info.outputs.version }}" || exit 0
+          git push
+
