@@ -151,4 +151,3 @@ See [LICENSE](LICENSE).
 ## Stars
 ## Star History
 [![Star History Chart](https://api.star-history.com/svg?repos=jae-labs/flashcards&type=date&legend=top-left)](https://www.star-history.com/#jae-labs/flashcards&type=date&legend=top-left)
-
