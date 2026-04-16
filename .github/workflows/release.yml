@@ -157,7 +157,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create versioned GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.tag.outputs.version }}
           name: ${{ steps.tag.outputs.version }}
@@ -185,7 +185,7 @@ jobs:
         continue-on-error: true
 
       - name: Create 'latest' release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: latest
           name: "Latest"
