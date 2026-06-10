@@ -1,5 +1,7 @@
 # Lefthook Git Hooks
 # https://github.com/evilmartians/lefthook
+#
+# Tool versions are pinned via mise (see mise.toml).
 
 pre-commit:
   parallel: false

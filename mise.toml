@@ -1,0 +1,8 @@
+# Pinned tool versions for local development.
+# CI pins its own versions in .github/workflows/ci.yml;
+# this file keeps local parity.
+
+[tools]
+go = "1.26.4"
+golangci-lint = "2.12.2"
+lefthook = "2.1.9"
